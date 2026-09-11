@@ -1,0 +1,52 @@
+version: "3.8"
+
+services:
+  postgres_db:
+    image: postgres:16-alpine
+    container_name: effluent_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: effluent_user
+      POSTGRES_PASSWORD: effluent_pass
+      POSTGRES_DB: effluent_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U effluent_user -d effluent_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend_api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: effluent_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://effluent_user:effluent_pass@postgres_db:5432/effluent_db
+      ASYNC_DATABASE_URL: postgresql+asyncpg://effluent_user:effluent_pass@postgres_db:5432/effluent_db
+      SECRET_KEY: industrial_effluent_secret_key_production_2026
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      REFRESH_TOKEN_EXPIRE_DAYS: 7
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USER: ${SMTP_USER:-""}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-""}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-""}
+      ENABLE_EMAIL_ALERTS: "true"
+      DEFAULT_CRITICAL_THRESHOLD: "75.0"
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app
+      - ./alembic:/app/alembic
+
+volumes:
+  postgres_data:
